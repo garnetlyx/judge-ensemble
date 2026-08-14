@@ -40,8 +40,20 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "tsup": "^8.0.0",
     "typescript": "^5.5.0",
-    "vitest": "^2.0.0"
-  }
+    "vitest": "^4.1.10",
+    "@types/node": "^22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/garnetlyx/judge-ensemble.git"
+  },
+  "homepage": "https://github.com/garnetlyx/judge-ensemble#readme",
+  "bugs": {
+    "url": "https://github.com/garnetlyx/judge-ensemble/issues"
+  },
+  "author": "Garnet Liu",
+  "sideEffects": false
 }

@@ -315,6 +315,40 @@ describe('withTimeout parentSignal cascade', () => {
     expect(removeSpy).toHaveBeenCalled();
     removeSpy.mockRestore();
   });
+
+  it('leaks zero abort listeners on the parent signal after many successful calls', async () => {
+    const parent = new AbortController();
+    const factory = (_signal: AbortSignal) => Promise.resolve('ok');
+
+    for (let i = 0; i < 50; i++) {
+      await withTimeout(factory, 1000, 'irrelevant', parent.signal);
+    }
+
+    // Node >= 18: listener count is observable via getMaxListeners/getEventListenerCount
+    const { EventEmitter } = await import('node:events');
+    expect(EventEmitter.listenerCount(parent.signal as unknown as import('node:events').EventEmitter, 'abort')).toBe(0);
+  });
+
+  it('leaks zero abort listeners after timeout rejections with parent signal', async () => {
+    const parent = new AbortController();
+    const factory = (_signal: AbortSignal) => new Promise<string>(() => {});
+
+    for (let i = 0; i < 20; i++) {
+      await expect(withTimeout(factory, 5, 't', parent.signal)).rejects.toThrow('t');
+    }
+
+    const { EventEmitter } = await import('node:events');
+    expect(EventEmitter.listenerCount(parent.signal as unknown as import('node:events').EventEmitter, 'abort')).toBe(0);
+  });
+
+  it('uses the provided errorFactory for timeout errors', async () => {
+    class CustomTimeout extends Error { override name = 'CustomTimeout'; }
+    const factory = (_signal: AbortSignal) => new Promise<string>(() => {});
+
+    await expect(
+      withTimeout(factory, 5, 'boom', undefined, (m) => new CustomTimeout(m))
+    ).rejects.toMatchObject({ name: 'CustomTimeout', message: 'boom' });
+  });
 });
 
 describe('categorizeError edge cases', () => {

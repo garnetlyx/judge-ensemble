@@ -141,7 +141,8 @@ export async function withTimeout<T>(
   promiseOrFactory: Promise<T> | ((signal: AbortSignal) => Promise<T>),
   ms: number,
   timeoutMessage = 'Operation timed out',
-  parentSignal?: AbortSignal
+  parentSignal?: AbortSignal,
+  errorFactory?: (message: string) => Error
 ): Promise<T> {
   if (parentSignal?.aborted) {
     throw new Error('Aborted before start: parent signal already aborted');
@@ -166,17 +167,23 @@ export async function withTimeout<T>(
     ? promiseOrFactory(abortController.signal)
     : promiseOrFactory;
 
+  // Leak fix: a Promise.race loser never settles, so its abort listener must
+  // be removable once the race is decided — otherwise every successful or
+  // timed-out call leaks one listener on the (long-lived) parent signal.
+  const racerDetach: { fn?: () => void } = {};
   const parentAbortPromise = parentSignal
     ? new Promise<never>((_, reject) => {
+      const theSignal = parentSignal;
       const onAbort = () => reject(new Error('Aborted: parent signal aborted'));
-      parentSignal.addEventListener('abort', onAbort, { once: true });
+      theSignal.addEventListener('abort', onAbort, { once: true });
+      racerDetach.fn = () => theSignal.removeEventListener('abort', onAbort);
     })
     : null;
 
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
       abortController.abort();
-      reject(new Error(timeoutMessage));
+      reject(errorFactory ? errorFactory(timeoutMessage) : new Error(timeoutMessage));
     }, ms);
     (timeoutId as { unref?: () => void })?.unref?.();
   });
@@ -189,10 +196,12 @@ export async function withTimeout<T>(
   try {
     const result = await Promise.race(racers);
     clearTimeout(timeoutId!);
+    racerDetach.fn?.();
     if (detachParent) detachParent();
     return result;
   } catch (error) {
     clearTimeout(timeoutId!);
+    racerDetach.fn?.();
     if (!abortController.signal.aborted) {
       abortController.abort();
     }

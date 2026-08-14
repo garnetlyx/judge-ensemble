@@ -12,7 +12,16 @@
  * No app-config or app-type dependency.
  */
 import { withRetry, withTimeout, type RetryOptions } from './retry';
-// (RetryOptions may carry onRetry; panel callers configure it in opts.retry)
+
+/** Thrown (internally) when the panel's overall budget expires. Lets runPanel
+ * distinguish a genuine deadline from an unexpected internal error — only the
+ * former triggers fallback filling; the latter propagates to the caller. */
+export class BudgetExpiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BudgetExpiredError';
+  }
+}
 
 /** How a slot's result was produced. */
 export type Via = 'real' | 'substitute' | 'fallback';
@@ -58,18 +67,27 @@ export interface RunPanelOptions<T, M> {
   call: (target: M, signal: AbortSignal) => Promise<T | null>;
   /** Stamp app-level metadata (e.g. judge display name, substitutedFor). */
   decorate: (result: T, target: M, via: Via, slot: string) => T;
-  /** Produce a fallback result for a slot that could not complete. */
+  /** Produce a fallback result for a slot that could not complete.
+   * Contract: must not throw — a throwing fallback rejects runPanel, since a
+   * caller-owned T cannot be fabricated. */
   fallback: (slot: string, cause: FallbackCause) => T;
   /**
    * Find an unused substitute target. Receives the set of already-assigned
-   * target keys (seeded with the primary slots). Return undefined for none.
+   * target keys — seeded with the target keys of every resolvable primary
+   * slot, plus each substitute as it is claimed. A target in this set is
+   * never returned by findSubstitute (enforced by contract; see
+   * "Substitute dedup" in the README). Return undefined for none.
    */
   findSubstitute: (assignedKeys: ReadonlySet<string>) => M | undefined;
   /** Called when a primary target call fails (e.g. health-check the model). */
   onTargetError?: (target: M, error: unknown) => void;
   /** Stream each result as it lands. Callback errors are swallowed. */
   onResult?: (result: PanelResult<T>, completed: number, total: number) => void;
-  /** Called with the budget-expiry error and the surviving results (for logging). */
+  /**
+   * Invoked when the overall budget expires, with the expiry error and the
+   * results that survived. For observability only — the panel's delivery
+   * guarantee holds even if this callback throws (the error is swallowed).
+   */
   onBudgetExceeded?: (error: unknown, collected: PanelResult<T>[]) => void;
 }
 
@@ -97,11 +115,26 @@ export async function runPanel<T, M>(opts: RunPanelOptions<T, M>): Promise<Panel
     await withTimeout(
       (signal) => runSlots(opts, signal, emit),
       opts.budgetMs,
-      `Panel budget of ${opts.budgetMs}ms exceeded`
+      `Panel budget of ${opts.budgetMs}ms exceeded`,
+      undefined,
+      (msg) => new BudgetExpiredError(msg)
     );
   } catch (error) {
+    // Only a genuine budget expiry degrades to fallback filling. An unexpected
+    // internal error (a bug in this library, or a throwing callback outside
+    // the crash-safe wrappers) propagates — silently masking it with fallbacks
+    // would hide real failures.
+    if (!isBudgetExpired(error)) {
+      state.sealed = true;
+      throw error;
+    }
     state.sealed = true;
-    opts.onBudgetExceeded?.(error, collected);
+    // Observability callback — delivery guarantee must not depend on it.
+    try {
+      opts.onBudgetExceeded?.(error, collected);
+    } catch {
+      // swallowed by contract
+    }
 
     // Delivery guarantee: completed results survive the timeout; fill the rest.
     // Fill per slot *occurrence* (duplicate slots each get a result).
@@ -133,6 +166,10 @@ export async function runPanel<T, M>(opts: RunPanelOptions<T, M>): Promise<Panel
   return collected;
 }
 
+function isBudgetExpired(error: unknown): boolean {
+  return error instanceof BudgetExpiredError;
+}
+
 async function runSlots<T, M>(
   opts: RunPanelOptions<T, M>,
   signal: AbortSignal | undefined,
@@ -152,6 +189,10 @@ async function runSlots<T, M>(
     via: 'fallback',
     result: opts.fallback(slot, cause),
   });
+
+  // Slot-path fallbacks (unknown-slot / online-failure / offline-failure) run
+  // inside the slot's try/catch below: a throwing fallback degrades to the
+  // defensive catch, keeping the slot promise non-rejecting.
 
   async function trySubstitute(
     slot: string,

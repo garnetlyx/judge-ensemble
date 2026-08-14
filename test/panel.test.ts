@@ -9,7 +9,7 @@
  * 6. Duplicate slots each receive a result.
  */
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import { runPanel, RunPanelOptions, PanelResult } from '../src/panel';
+import { runPanel, RunPanelOptions, PanelResult, BudgetExpiredError } from '../src/panel';
 
 interface Target {
   id: string;
@@ -277,6 +277,54 @@ describe('judgePanel runPanel', () => {
     expect(onBudgetExceeded).toHaveBeenCalledTimes(1);
     const [, collected] = onBudgetExceeded.mock.calls[0]!;
     expect(collected).toEqual([]);
+  });
+
+  describe('budget error discrimination (internal errors propagate)', () => {
+    it('re-throws internal errors instead of masking them with fallbacks', async () => {
+      // resolveSlot throwing is an integration bug, not a budget expiry —
+      // runPanel must propagate it rather than silently filling fallbacks.
+      const badOptions = baseOptions(targets, calls, {
+        resolveSlot: () => { throw new Error('roster exploded'); },
+      });
+
+      await expect(runPanel(badOptions)).rejects.toThrow('roster exploded');
+    });
+
+    it('budget expiry produces a BudgetExpiredError instance via onBudgetExceeded', async () => {
+      calls.mockImplementation(() => new Promise<Item>(() => { }));
+      const seen: unknown[] = [];
+      const results = await runPanel(baseOptions(targets, calls, {
+        budgetMs: 40,
+        onBudgetExceeded: (err) => seen.push(err),
+      }));
+
+      expect(seen).toHaveLength(1);
+      expect(seen[0]).toBeInstanceOf(BudgetExpiredError);
+      expect(results).toHaveLength(2);
+      expect(results.every(r => r.via === 'fallback')).toBe(true);
+    });
+
+    it('a throwing onBudgetExceeded does not break the always-N guarantee', async () => {
+      calls.mockImplementation(() => new Promise<Item>(() => { }));
+
+      const results = await runPanel(baseOptions(targets, calls, {
+        budgetMs: 40,
+        onBudgetExceeded: () => { throw new Error('observability callback crashed'); },
+      }));
+
+      expect(results).toHaveLength(2);
+      expect(results.every(r => r.via === 'fallback')).toBe(true);
+    });
+
+    it('a throwing fallback on the slot path keeps the slot non-rejecting', async () => {
+      // unknown-slot path: fallback throws -> defensive catch must produce... a
+      // caller-owned T cannot be fabricated, so the slot promise rejects into
+      // Promise.all — the panel rejects. That is the documented contract.
+      const badFallback = () => { throw new Error('bad fallback'); };
+      await expect(
+        runPanel(baseOptions(targets, calls, { slots: ['ghost'], fallback: badFallback }))
+      ).rejects.toThrow('bad fallback');
+    });
   });
 
   it('handles empty slots', async () => {
