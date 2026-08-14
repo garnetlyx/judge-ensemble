@@ -10,6 +10,7 @@ export {
 
 export {
   runPanel,
+  BudgetExpiredError,
   type RunPanelOptions,
   type PanelResult,
   type Via,
