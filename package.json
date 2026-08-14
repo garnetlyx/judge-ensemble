@@ -1,7 +1,7 @@
 {
   "name": "judge-ensemble",
   "version": "0.1.0",
-  "description": "Run N concurrent judges under a hard time budget — always get exactly N labeled results (real | substitute | fallback), streamed as they land, with abort cascades that never waste in-flight calls.",
+  "description": "Run N concurrent judges under a hard time budget \u2014 always get exactly N labeled results (real | substitute | fallback), streamed as they land, with abort cascades that never waste in-flight calls.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -19,7 +19,8 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "test": "vitest run",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "prepare": "npm run build"
   },
   "keywords": [
     "llm-as-judge",
