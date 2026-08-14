@@ -36,7 +36,7 @@ const results = await runPanel({
 
 ## Why not `Promise.allSettled` + a timeout wrapper?
 
-Three reasons, all learned running a multi-model AI debate platform in production:
+Three reasons, all learned in production running [AI Judge](https://ai-judge.ai), a multi-model AI debate platform:
 
 1. `allSettled` gives you *eventual* results; your UI needs *guaranteed, bounded* results. When the budget expires, the panel resolves immediately with survivors + labeled fallbacks — the in-flight calls keep aborting in the background.
 2. Naive timeouts leak: the wrapped promise is still pending, the HTTP call keeps burning tokens. Here every layer receives an `AbortSignal` and the cascade aborts retries mid-sleep, calls mid-flight.
@@ -51,7 +51,7 @@ See `src/index.ts` for the full type surface. The two exports:
 
 ## Status
 
-0.x — API may change. Extracted from a multi-model AI debate platform where it judges every round in production.
+0.x — API may change. Extracted from and battle-tested in [AI Judge](https://ai-judge.ai), a multi-model AI debate platform where it judges every round in production.
 
 ## License
 
