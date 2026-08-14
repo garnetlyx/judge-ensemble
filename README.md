@@ -4,6 +4,32 @@ Run N concurrent judges (LLM or otherwise) under a hard time budget — **always
 
 > Extracted from and battle-tested in [AI Judge](https://ai-judge.ai), a multi-model AI debate platform where it judges every round in production.
 
+## Use cases
+
+**[Multi-model AI evaluation](docs/use-cases.md#1-multi-model-ai-evaluation-the-home-turf)** — the home turf: debate verdicts, essay grading, code review, RAG correctness. Every verdict labeled `real`/`substitute`/`fallback`, so analytics never mistake a degraded result for a genuine judgment.
+
+```ts
+const results = await runPanel({
+  slots: ['grammar-judge', 'factual-judge', 'style-judge'],
+  budgetMs: 20_000,
+  // ...
+});
+// one model down? still exactly 3 results:
+// [
+//   { slot: 'grammar-judge', via: 'real',       result: { score: 87, rubric: 'grammar' } },
+//   { slot: 'factual-judge', via: 'substitute', result: { score: 91, rubric: 'factual' } },
+//   { slot: 'style-judge',   via: 'fallback',   result: { score: 0,  rubric: 'style', unavailable: true } },
+// ]
+```
+
+**Other scenarios where the same guarantees pay off** (full write-ups in [docs/use-cases.md](docs/use-cases.md)):
+
+- **Multi-provider failover** — parallel requests across OpenAI/Anthropic/self-hosted with per-provider timeouts; the abort chain (budget → retry → call → HTTP request) never keeps burning tokens after they lose value
+- **Real-time UI** — `onResult` streams each result the instant it lands (WebSockets/SSE), and late completions after budget expiry are never double-emitted
+- **Content moderation** — every check dimension yields a verdict; failures degrade to `manual-review` fallbacks instead of crashing the request
+- **Multi-source aggregation / microservice fan-out** — price comparison, travel quotes, multi-region reads; stable result shape under partial degradation
+- **Multi-agent workflows** — the reliability execution layer beneath your aggregation (not a framework: prompts, memory, voting stay yours)
+
 ## Install
 
 ```bash
