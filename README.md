@@ -55,6 +55,10 @@ Node.js >= 18. Zero runtime dependencies. ESM + CJS dual entry, fully typed.
 - **Streaming.** `onResult(result, completed, total)` fires as each judge finishes, in completion order. Callback crashes never break the panel.
 - **Error discrimination.** Only a genuine budget expiry degrades to fallback filling; unexpected internal errors propagate to the caller instead of being silently masked.
 
+<p align="center">
+  <img src="docs/demo.gif" alt="3 concurrent judges under a 2s budget — 1 real verdict lands, 2 time out, exactly 3 labeled verdicts delivered" width="800" />
+</p>
+
 ## Quick start
 
 ```ts
