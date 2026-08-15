@@ -4,6 +4,14 @@ Run N concurrent judges (LLM or otherwise) under a hard time budget — **always
 
 > Extracted from and battle-tested in [AI Judge](https://ai-judge.ai), a multi-model AI debate platform where it judges every round in production.
 
+## Install
+
+```bash
+npm i judge-ensemble
+```
+
+Node.js >= 18. Zero runtime dependencies. ESM + CJS dual entry, fully typed.
+
 ## Use cases
 
 **[Multi-model AI evaluation](docs/use-cases.md#1-multi-model-ai-evaluation-the-home-turf)** — the home turf: debate verdicts, essay grading, code review, RAG correctness. Every verdict labeled `real`/`substitute`/`fallback`, so analytics never mistake a degraded result for a genuine judgment.
