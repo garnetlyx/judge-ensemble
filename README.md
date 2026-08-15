@@ -1,5 +1,10 @@
 # judge-ensemble
 
+<p align="center">
+  <img src="docs/demo.gif" alt="3 concurrent judges under a 2s budget — 1 real verdict lands, 2 time out, exactly 3 labeled verdicts delivered" width="800" />
+</p>
+
+
 Run N concurrent judges (LLM or otherwise) under a hard time budget — **always get exactly N labeled results**, streamed as they land.
 
 > Extracted from and battle-tested in [AI Judge](https://ai-judge.ai), a multi-model AI debate platform where it judges every round in production.
@@ -54,10 +59,6 @@ Node.js >= 18. Zero runtime dependencies. ESM + CJS dual entry, fully typed.
 - **Substitute dedup.** A target is never assigned twice — the substitute pool is seeded with every resolvable primary slot's `targetKey`, and each claimed substitute is excluded as it's taken.
 - **Streaming.** `onResult(result, completed, total)` fires as each judge finishes, in completion order. Callback crashes never break the panel.
 - **Error discrimination.** Only a genuine budget expiry degrades to fallback filling; unexpected internal errors propagate to the caller instead of being silently masked.
-
-<p align="center">
-  <img src="docs/demo.gif" alt="3 concurrent judges under a 2s budget — 1 real verdict lands, 2 time out, exactly 3 labeled verdicts delivered" width="800" />
-</p>
 
 ## Quick start
 
