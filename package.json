@@ -1,6 +1,6 @@
 {
   "name": "judge-ensemble",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Run N concurrent judges under a hard time budget — always get exactly N labeled results (real | substitute | fallback), streamed as they land, with abort cascades that never waste in-flight calls.",
   "type": "module",
   "main": "./dist/index.cjs",
